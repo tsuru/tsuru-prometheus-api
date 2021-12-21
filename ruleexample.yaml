@@ -1,0 +1,7 @@
+groups:
+- interval: 30s
+  name: job:gin_http_request.rollout-latency
+  rules:
+  - expr: |
+      sum without (instance) (increase(gin_http_request_duration_seconds_bucket[1m]))
+    record: bka
