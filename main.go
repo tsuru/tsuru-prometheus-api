@@ -28,7 +28,7 @@ func main() {
 		log.Fatalln("TSURU_TARGET and TSURU_TOKEN must be set")
 	}
 
-	svc := service.NewService(tsuruToken, kubernetesToken)
+	svc := service.NewService(tsuruToken, service.NewK8SClientGetterWithToken(kubernetesToken))
 
 	server := api.NewServer(api.ServerOpts{
 		Service:      svc,

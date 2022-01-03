@@ -21,15 +21,27 @@ type Service interface {
 	EnsurePrometheusRule(pool string, ruleName string, ruleGroups rulefmt.RuleGroups) error
 }
 
+type K8SClientGetter func(*tsuru.Cluster) (sigsk8sclient.Client, error)
+
 type serviceImpl struct {
 	tsuruToken      string
-	kubernetesToken string
+	k8SClientGetter K8SClientGetter
 }
 
-func NewService(tsuruToken, kubernetesToken string) Service {
+func NewK8SClientGetterWithToken(token string) K8SClientGetter {
+	return func(cluster *tsuru.Cluster) (sigsk8sclient.Client, error) {
+		kubernetesRestConfig := &rest.Config{
+			Host:        cluster.Addresses[0],
+			BearerToken: token,
+		}
+		return sigsk8sclient.New(kubernetesRestConfig, sigsk8sclient.Options{Scheme: scheme})
+	}
+}
+
+func NewService(tsuruToken string, k8SClientGetter K8SClientGetter) Service {
 	return &serviceImpl{
 		tsuruToken:      tsuruToken,
-		kubernetesToken: kubernetesToken,
+		k8SClientGetter: k8SClientGetter,
 	}
 }
 
@@ -56,12 +68,7 @@ func (s *serviceImpl) EnsurePrometheusRule(pool string, ruleName string, ruleGro
 		return err
 	}
 
-	kubernetesRestConfig := &rest.Config{
-		Host:        cluster.Addresses[0],
-		BearerToken: s.kubernetesToken,
-	}
-
-	k8sClient, err := sigsk8sclient.New(kubernetesRestConfig, sigsk8sclient.Options{Scheme: scheme})
+	k8sClient, err := s.k8SClientGetter(cluster)
 	if err != nil {
 		return err
 	}
@@ -95,6 +102,7 @@ func (s *serviceImpl) EnsurePrometheusRule(pool string, ruleName string, ruleGro
 	}
 
 	if !needsCreation {
+		desiredPrometheusRule.ResourceVersion = currentPrometheusRule.ResourceVersion
 		err := k8sClient.Update(ctx, desiredPrometheusRule)
 		if err != nil {
 			return err
