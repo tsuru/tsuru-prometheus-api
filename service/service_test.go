@@ -63,6 +63,9 @@ func TestEnsureCreation(t *testing.T) {
 		"app.kubernetes.io/managed-by": "tsuru",
 		"app.kubernetes.io/part-of":    "tsuru-prometheus-api",
 	}, currentPrometheusRule.Annotations)
+	assert.Equal(t, map[string]string{
+		"tsuru.io/pool": "fake-pool",
+	}, currentPrometheusRule.Labels)
 	assert.Equal(t, monitoringv1.PrometheusRuleSpec{
 		Groups: []monitoringv1.RuleGroup{
 			{
@@ -141,6 +144,9 @@ func TestEnsureUpdate(t *testing.T) {
 		"app.kubernetes.io/managed-by": "tsuru",
 		"app.kubernetes.io/part-of":    "tsuru-prometheus-api",
 	}, currentPrometheusRule.Annotations)
+	assert.Equal(t, map[string]string{
+		"tsuru.io/pool": "fake-pool",
+	}, currentPrometheusRule.Labels)
 	assert.Equal(t, monitoringv1.PrometheusRuleSpec{
 		Groups: []monitoringv1.RuleGroup{
 			{

@@ -82,6 +82,9 @@ func (s *serviceImpl) EnsurePrometheusRule(pool string, ruleName string, ruleGro
 				"app.kubernetes.io/managed-by": "tsuru",
 				"app.kubernetes.io/part-of":    "tsuru-prometheus-api",
 			},
+			Labels: map[string]string{
+				"tsuru.io/pool": pool,
+			},
 		},
 		Spec: monitoringv1.PrometheusRuleSpec{
 			Groups: kubernetizeRuleGroups(ruleGroups.Groups),
