@@ -9,7 +9,9 @@ import (
 )
 
 func main() {
-	tsuruHost := os.Getenv("TSURU_HOST")
+	kubernetesToken := os.Getenv("KUBERNETES_TOKEN")
+
+	tsuruTarget := os.Getenv("TSURU_TARGET")
 	tsuruToken := os.Getenv("TSURU_TOKEN")
 
 	authUser := os.Getenv("AUTH_USER")
@@ -22,11 +24,11 @@ func main() {
 		authPassword = "admin"
 	}
 
-	if tsuruHost == "" || tsuruToken == "" {
-		log.Fatalln("TSURU_HOST and TSURU_TOKEN must be set")
+	if tsuruTarget == "" || tsuruToken == "" {
+		log.Fatalln("TSURU_TARGET and TSURU_TOKEN must be set")
 	}
 
-	svc := service.NewService(tsuruHost, tsuruToken)
+	svc := service.NewService(tsuruToken, kubernetesToken)
 
 	server := api.NewServer(api.ServerOpts{
 		Service:      svc,
