@@ -11,9 +11,15 @@ import (
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	k8sScheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
 	sigsk8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -36,6 +42,55 @@ func NewK8SClientGetterWithToken(token string) K8SClientGetter {
 		}
 		return sigsk8sclient.New(kubernetesRestConfig, sigsk8sclient.Options{Scheme: scheme})
 	}
+}
+
+func NewK8SClientGetterWithKubeConfig(cluster *tsuru.Cluster) (sigsk8sclient.Client, error) {
+	if cluster.KubeConfig == nil {
+		return nil, fmt.Errorf("no kube config found for cluster %s", cluster.Name)
+	}
+
+	gv, err := schema.ParseGroupVersion("/v1")
+	if err != nil {
+		return nil, err
+	}
+
+	cliCfg := clientcmdapi.Config{
+		APIVersion:     "v1",
+		Kind:           "Config",
+		CurrentContext: cluster.Name,
+		Clusters: map[string]*clientcmdapi.Cluster{
+			cluster.Name: &clientcmdapi.Cluster{
+				Server:                cluster.KubeConfig.Cluster.Server,
+				CertificateAuthority:  cluster.KubeConfig.Cluster.CertificateAuthorityData,
+				InsecureSkipTLSVerify: cluster.KubeConfig.Cluster.InsecureSkipTlsVerify,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			cluster.Name: {
+				Cluster:  cluster.Name,
+				AuthInfo: cluster.Name,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			cluster.Name: &clientcmdapi.AuthInfo{
+				AuthProvider: &clientcmdapi.AuthProviderConfig{
+					Name: cluster.KubeConfig.User.AuthProvider.Name,
+				},
+			},
+		},
+	}
+	restConfig, err := clientcmd.NewNonInteractiveClientConfig(cliCfg, cluster.Name, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	restConfig.APIPath = "/api"
+	restConfig.ContentConfig = rest.ContentConfig{
+		GroupVersion:         &gv,
+		NegotiatedSerializer: serializer.WithoutConversionCodecFactory{CodecFactory: k8sScheme.Codecs},
+	}
+
+	return sigsk8sclient.New(restConfig, sigsk8sclient.Options{Scheme: scheme})
 }
 
 func NewService(tsuruToken string, k8SClientGetter K8SClientGetter) Service {
