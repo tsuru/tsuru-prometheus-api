@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	sigsk8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -54,15 +56,20 @@ func NewK8SClientGetterWithKubeConfig(cluster *tsuru.Cluster) (sigsk8sclient.Cli
 		return nil, err
 	}
 
+	certData, err := base64.StdEncoding.DecodeString(cluster.KubeConfig.Cluster.CertificateAuthorityData)
+	if err != nil {
+		return nil, err
+	}
+
 	cliCfg := clientcmdapi.Config{
 		APIVersion:     "v1",
 		Kind:           "Config",
 		CurrentContext: cluster.Name,
 		Clusters: map[string]*clientcmdapi.Cluster{
-			cluster.Name: &clientcmdapi.Cluster{
-				Server:                cluster.KubeConfig.Cluster.Server,
-				CertificateAuthority:  cluster.KubeConfig.Cluster.CertificateAuthorityData,
-				InsecureSkipTLSVerify: cluster.KubeConfig.Cluster.InsecureSkipTlsVerify,
+			cluster.Name: {
+				Server:                   cluster.KubeConfig.Cluster.Server,
+				CertificateAuthorityData: certData,
+				InsecureSkipTLSVerify:    cluster.KubeConfig.Cluster.InsecureSkipTlsVerify,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
@@ -72,7 +79,7 @@ func NewK8SClientGetterWithKubeConfig(cluster *tsuru.Cluster) (sigsk8sclient.Cli
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			cluster.Name: &clientcmdapi.AuthInfo{
+			cluster.Name: {
 				AuthProvider: &clientcmdapi.AuthProviderConfig{
 					Name: cluster.KubeConfig.User.AuthProvider.Name,
 				},
