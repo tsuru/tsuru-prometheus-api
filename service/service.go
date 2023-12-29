@@ -19,6 +19,7 @@ import (
 	k8sScheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -61,6 +62,24 @@ func NewK8SClientGetterWithKubeConfig(cluster *tsuru.Cluster) (sigsk8sclient.Cli
 		return nil, err
 	}
 
+	authInfo := make(map[string]*clientcmdapi.AuthInfo)
+	if cluster.KubeConfig.User.AuthProvider == nil {
+		authInfo[cluster.Name] = &clientcmdapi.AuthInfo{
+			Exec: &clientcmdapi.ExecConfig{
+				APIVersion:      cluster.KubeConfig.User.Exec.ApiVersion,
+				Command:         cluster.KubeConfig.User.Exec.Command,
+				Args:            cluster.KubeConfig.User.Exec.Args,
+				InteractiveMode: api.NeverExecInteractiveMode,
+			},
+		}
+	} else {
+		authInfo[cluster.Name] = &clientcmdapi.AuthInfo{
+			AuthProvider: &clientcmdapi.AuthProviderConfig{
+				Name: cluster.KubeConfig.User.AuthProvider.Name,
+			},
+		}
+	}
+
 	cliCfg := clientcmdapi.Config{
 		APIVersion:     "v1",
 		Kind:           "Config",
@@ -78,13 +97,7 @@ func NewK8SClientGetterWithKubeConfig(cluster *tsuru.Cluster) (sigsk8sclient.Cli
 				AuthInfo: cluster.Name,
 			},
 		},
-		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			cluster.Name: {
-				AuthProvider: &clientcmdapi.AuthProviderConfig{
-					Name: cluster.KubeConfig.User.AuthProvider.Name,
-				},
-			},
-		},
+		AuthInfos: authInfo,
 	}
 	restConfig, err := clientcmd.NewNonInteractiveClientConfig(cliCfg, cluster.Name, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
 	if err != nil {
